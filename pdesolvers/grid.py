@@ -76,6 +76,12 @@ class FDMGrid:
     def mask(self):
         return self.__mask
 
+    def initialize(self):
+        """
+        Set initial and boundary conditions
+        """
+        pass
+
     def plot(self):
         # Plot the values on your grid
         # You'll need a different implementation for different dimensions
