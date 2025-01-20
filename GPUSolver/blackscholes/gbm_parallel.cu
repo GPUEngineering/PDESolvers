@@ -23,14 +23,19 @@ __global__ static void simulate_gbm(float* grid, float* brownian_path, float ini
 
         float dt = time/static_cast<float>(time_steps);
 
-        brownian_path[idx * time_steps] = 0.0f;
+        float br = 0;
+        float br_prev = 0;
+        // brownian_path[idx * time_steps] = 0.0f;
         grid[idx * time_steps] = initial_stock_price;
 
         for (int i = 1; i < time_steps; i++)
         {
             float Z = curand_normal(&state);
-            brownian_path[idx * time_steps + i] = brownian_path[idx * time_steps + i - 1] + std::sqrt(dt) * Z;
-            grid[idx * time_steps + i] = grid[idx * time_steps + i - 1] * expf((mu - 0.5f * powf(sigma, 2)) * dt + sigma * (brownian_path[idx * time_steps + i] - brownian_path[idx * time_steps + i - 1]));
+            br = br_prev + std::sqrt(dt) * Z;
+            // brownian_path[idx * time_steps + i] = brownian_path[idx * time_steps + i - 1] + std::sqrt(dt) * Z;
+            float delta_br = br - br_prev;
+            grid[idx * time_steps + i] = grid[idx * time_steps + i - 1] * expf((mu - 0.5f * powf(sigma, 2)) * dt + sigma * delta_br);
+            br = br_prev;
         }
     }
 }
