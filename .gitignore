@@ -5,6 +5,7 @@
    # ignore .idea file
    .idea/*
    .idea
+   /GPUSolver/.idea/
 
    # Ignore macOS system files
    .DS_Store
