@@ -5,6 +5,7 @@
 
 # Ignore local build files
 build/
+dist/
 pdesolvers.egg-info/
 
 # ignore .idea file
@@ -18,6 +19,7 @@ pdesolvers.egg-info/
 # Ignore VS Code files
 .vscode
 .venv
+.conda
 
 # Other files
 *.log
