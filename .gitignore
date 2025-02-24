@@ -3,6 +3,10 @@
 **/__pycache__/
 **/*.py[cod]
 
+# Ignore local build files
+build/
+pdesolvers.egg-info/
+
 # ignore .idea file
 .idea/*
 .idea
@@ -13,6 +17,7 @@
 
 # Ignore VS Code files
 .vscode
+.venv
 
 # Other files
 *.log
