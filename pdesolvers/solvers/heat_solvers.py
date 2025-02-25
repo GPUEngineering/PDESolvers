@@ -10,6 +10,11 @@ class Heat1DExplicitSolver:
         self.equation = equation
 
     def solve(self):
+        """
+        This method solves the heat (diffusion) equation using the explicit finite difference method
+
+        :return: the solver instance with the computed temperature values
+        """
 
         x = self.equation.generate_x_grid()
         dx = x[1] - x[0]
@@ -38,6 +43,11 @@ class Heat1DCNSolver:
         self.equation = equation
 
     def solve(self):
+        """
+        This method solves the heat (diffusion) equation using the Crank Nicolson method
+
+        :return: the solver instance with the computed temperature values
+        """
 
         x = self.equation.generate_x_grid()
         t = self.equation.generate_t_grid()

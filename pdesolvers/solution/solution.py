@@ -10,6 +10,11 @@ class Solution1D:
         self.t_grid = t_grid
 
     def plot(self):
+        """
+        Generates a 3D surface plot of the temperature distribution across a grid of space and time
+
+        :return: 3D surface plot
+        """
 
         if self.result is None:
             raise RuntimeError("Solution has not been computed - please run the solver.")
@@ -31,6 +36,11 @@ class Solution1D:
         plt.show()
 
     def get_result(self):
+        """
+        Gets the grid of computed temperature values
+
+        :return: grid result
+        """
         return self.result
 
 class SolutionBlackScholes:
@@ -40,6 +50,11 @@ class SolutionBlackScholes:
         self.t_grid = t_grid
 
     def plot(self):
+        """
+        Generates a 3D surface plot of the option values across a grid of asset prices and time
+
+        :return: 3D surface plot
+        """
 
         X, Y = np.meshgrid(self.t_grid, self.s_grid)
 
@@ -57,4 +72,9 @@ class SolutionBlackScholes:
         plt.show()
 
     def get_result(self):
+        """
+        Gets the grid of computed option prices
+
+        :return: grid result
+        """
         return self.result

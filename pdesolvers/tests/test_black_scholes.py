@@ -7,7 +7,7 @@ import pdesolvers.solvers.black_scholes_solvers as solver
 class TestBlackScholesSolvers:
 
     def setup_method(self):
-        self.equation = bse.BlackScholesEquation('call', 300, 1, 0.2, 0.05, 100, 500, 20000)
+        self.equation = bse.BlackScholesEquation('call', 300, 1, 0.2, 0.05, 100, 100, 2000)
 
     # explicit method tests
 
@@ -72,10 +72,12 @@ class TestBlackScholesSolvers:
         u2 = result2.get_result()
         diff = u1 - u2
 
-        # X, Y = np.meshgrid(result1.t_grid, result1.s_grid)
+        assert np.max(np.abs(diff)) < 1e-2
 
+        # X, Y = np.meshgrid(result1.t_grid, result1.s_grid)
+        #
         # fig = plt.figure(figsize=(10,6))
         # ax = fig.add_subplot(111, projection='3d')
         # surf = ax.plot_surface(X, Y, diff, cmap='viridis')
-        print(np.max(np.abs(diff)))
+        # print(np.max(np.abs(diff)))
         # plt.show()

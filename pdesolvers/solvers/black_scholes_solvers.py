@@ -12,8 +12,12 @@ class BlackScholesExplicitSolver:
     def solve(self):
         """
         This method solves the Black-Scholes equation using the explicit finite difference method
+
         :return: the solver instance with the computed option values
         """
+
+        S = self.equation.generate_asset_grid()
+        T = self.equation.generate_time_grid()
 
         dt_max = 1/((self.equation.s_nodes**2) * (self.equation.sigma**2)) # cfl condition to ensure stability
 
@@ -23,14 +27,10 @@ class BlackScholesExplicitSolver:
             dt = self.equation.expiry / self.equation.t_nodes # to ensure that the expiration time is integer time steps away
         else:
             # possible fix - set a check to see that user-defined value is within cfl condition
-            dt = self.equation.expiry / self.equation.t_nodes
+            dt = T[1] - T[0]
 
             if dt > dt_max:
                 raise ValueError("User-defined t nodes is too small and exceeds the CFL condition. Possible action: Increase number of t nodes for stability!")
-
-
-        S = self.equation.generate_asset_grid()
-        T = self.equation.generate_time_grid()
 
         dS = S[1] - S[0]
 
@@ -47,7 +47,7 @@ class BlackScholesExplicitSolver:
         for tau in reversed(range(self.equation.t_nodes)):
             for i in range(1, self.equation.s_nodes):
                 delta = (V[i+1, tau+1] - V[i-1, tau+1]) /  (2 * dS)
-                gamma = (V[i+1, tau+1] - 2 * V[i,tau+1] + V[i-1, tau+1]) / dS ** 2
+                gamma = (V[i+1, tau+1] - 2 * V[i,tau+1] + V[i-1, tau+1]) / (dS ** 2)
                 theta = -0.5 * ( self.equation.sigma ** 2) * (S[i] ** 2) * gamma - self.equation.rate * S[i] * delta + self.equation.rate * V[i, tau+1]
                 V[i, tau] = V[i, tau + 1] - (theta * dt)
 
@@ -59,6 +59,14 @@ class BlackScholesExplicitSolver:
         return sol.SolutionBlackScholes(V,S,T)
 
     def __set_boundary_conditions(self, T, tau):
+        """
+        Sets the boundary conditions for the Black-Scholes Equation based on option type
+
+        :param T: grid of time steps
+        :param tau: index of current time step
+        :return: a tuple representing the boundary values for the given time step
+        """
+
         lower_boundary = None
         upper_boundary = None
         if self.equation.option_type == 'call':
@@ -76,6 +84,11 @@ class BlackScholesCNSolver:
         self.equation = equation
 
     def solve(self):
+        """
+        This method solves the Black-Scholes equation using the Crank-Nicolson method
+
+        :return: the solver instance with the computed option values
+        """
 
         S = self.equation.generate_asset_grid()
         T = self.equation.generate_time_grid()
