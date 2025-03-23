@@ -11,4 +11,4 @@ source venv/bin/activate
 
 pip install -r requirements.txt
 
-pytest
+pytest --cov=pdesolvers pdesolvers/tests/

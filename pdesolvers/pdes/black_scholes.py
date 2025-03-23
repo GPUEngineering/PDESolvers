@@ -1,8 +1,9 @@
 import numpy as np
+from pdesolvers.enums.enums import OptionType
 
 class BlackScholesEquation:
 
-    def __init__(self, option_type, S_max, expiry, sigma, r, K, s_nodes=1, t_nodes=None):
+    def __init__(self, option_type: OptionType, S_max, expiry, sigma, r, K, s_nodes=1, t_nodes=None):
         """
         Initialises the solver with the necessary parameters
 
@@ -16,6 +17,8 @@ class BlackScholesEquation:
         :param t_nodes: number of time nodes
         """
 
+        if not isinstance(option_type, OptionType):
+            raise TypeError(f"Option type must be of type OptionType enum" )
         self.__option_type = option_type
         self.__S_max = S_max
         self.__expiry = expiry
@@ -26,11 +29,9 @@ class BlackScholesEquation:
         self.__t_nodes = t_nodes
         self.__V = None
 
-    def generate_asset_grid(self):
-        return np.linspace(0, self.__S_max, self.__s_nodes+1)
-
-    def generate_time_grid(self):
-        return np.linspace(0, self.__expiry, self.__t_nodes+1)
+    @staticmethod
+    def generate_grid(value, nodes):
+        return np.linspace(0, value, nodes + 1)
 
     @property
     def s_nodes(self):

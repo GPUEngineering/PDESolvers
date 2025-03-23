@@ -14,6 +14,6 @@ jobs:
         with:
           python-version: '3.13'
           architecture: 'x64'
-      - name: Run Script
+      - name: Run python tests
         run: |
-          bash ./ci/script.sh
+          bash ./ci/run_python_tests.sh

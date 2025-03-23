@@ -38,22 +38,20 @@ class HeatEquation:
 
         if self.__left_boundary_temp is not None:
             err = np.abs(self.__left_boundary_temp(0) - self.__initial_temp(0))
-            assert err < 1e-12
+            assert err < 1e-12, f"Left boundary condition at t=0 does not match the initial condition."
 
         if self.__right_boundary_temp is not None:
-            err = np.abs(self.__right_boundary_temp(0) - self.__initial_temp(0))
-            assert err < 1e-12
+            err = np.abs(self.__right_boundary_temp(0) - self.__initial_temp(self.__length))
+            assert err < 1e-12, f"Right boundary condition at t=0 does not match the initial condition."
 
     @staticmethod
     def __validate_callable(func):
         if not callable(func):
             raise ValueError("Temperature conditions must be a callable function")
 
-    def generate_x_grid(self):
-        return np.linspace(0, self.__length, self.__x_nodes)
-
-    def generate_t_grid(self):
-        return np.linspace(0, self.__time, self.__t_nodes)
+    @staticmethod
+    def generate_grid(value, nodes):
+        return np.linspace(0, value, nodes)
 
     @property
     def length(self):
