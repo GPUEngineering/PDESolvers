@@ -31,11 +31,6 @@ class HeatEquation2D:
     def set_bottom_boundary_temp(self, bottom):
         self.__bottom_boundary = bottom
 
-    @staticmethod
-    # This ain't it chief, start implementing solver u will run into something
-    def generate_grid(value, nodes):
-        return np.linspace(0, value, nodes)
-
     @property
     def xlength(self):
         return self.__xlength
@@ -63,3 +58,23 @@ class HeatEquation2D:
     @property
     def k(self):
         return self.__k
+    
+    @property
+    def initial_temp(self):
+        return self.__initial_temp
+
+    @property
+    def left_boundary(self):
+        return self.__left_boundary
+
+    @property
+    def right_boundary(self):
+        return self.__right_boundary
+
+    @property
+    def top_boundary(self):
+        return self.__top_boundary
+
+    @property
+    def bottom_boundary(self):
+        return self.__bottom_boundary

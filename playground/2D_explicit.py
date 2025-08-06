@@ -59,12 +59,12 @@ def initMatrix():
     # set the boundary conditions for the entire 2D space
     for tau in range(numPointsTime):
         for i in range(numPointsSpace):
-            matrix[tau, i, 0] = left(tau, xDomain[i])
-            matrix[tau, i, -1] = right(tau, xDomain[i])
+            matrix[tau, i, 0] = left(timeDomain[tau], xDomain[i])
+            matrix[tau, i, -1] = right(timeDomain[tau], xDomain[i])
     for tau in range(numPointsTime):
         for j in range(numPointsSpace):
-            matrix[tau, 0, j] = bottom(tau, yDomain[j])
-            matrix[tau, -1, j] = top(tau, yDomain[j])
+            matrix[tau, 0, j] = bottom(timeDomain[tau], yDomain[j])
+            matrix[tau, -1, j] = top(timeDomain[tau], yDomain[j])
     # set the initial condition for the entire 2D space at t=0
     for i in range(len(xDomain)):
         for j in range(len(yDomain)):

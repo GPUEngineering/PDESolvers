@@ -28,6 +28,27 @@ class Heat1DHelper:
 
         return matrix
 
+class Heat2DHelper:
+    @staticmethod
+    def initMatrix(t_nodes, x_nodes, y_nodes, left, right, bottom, top, u0, xDomain, yDomain, tDomain):
+        # initialize an empty matrix
+        matrix = np.empty((t_nodes, x_nodes, y_nodes))
+        # set the boundary conditions for the entire 2D space
+        for tau in range(t_nodes):
+            for i in range(x_nodes):
+                matrix[tau, i, 0] = left(tau, xDomain[i])
+                matrix[tau, i, -1] = right(tau, xDomain[i])
+        for tau in range(t_nodes):
+            for j in range(x_nodes):
+                matrix[tau, 0, j] = bottom(tau, yDomain[j])
+                matrix[tau, -1, j] = top(tau, yDomain[j])
+        # set the initial condition for the entire 2D space at t=0
+        for i in range(len(xDomain)):
+            for j in range(len(yDomain)):
+                matrix[0,i,j] = u0(xDomain[i], yDomain[j])
+        
+        return matrix
+
 class BlackScholesHelper:
 
     @staticmethod
