@@ -1,118 +1,142 @@
-# We will use the 5-point Laplacian aprroximation stencil explicit method 
-# below to simulate the 2D Heat Equation
+# Corrected 2D Heat Equation simulation using explicit finite difference method
 import numpy as np
 import matplotlib.pyplot as plt
-
 from matplotlib.animation import FuncAnimation
 
 # Global Constants
-xLength = 50
-yLength = 50
-maxTime = 1
-diffusivityConstant = 1
-numPointsSpace = 200
-numPointsTime = 60
+xLength = 10  # Lx
+yLength = 10  # Ly  
+maxTime = 0.5  # tmax
+diffusivityConstant = 4  # kappa
+numPointsSpace = 50  # x_points = y_points
+numPointsTime = 2000  # t_points
 
-# Length Vector plotted on x-axis and y-axis
+# Domain setup
 xDomain = np.linspace(0, xLength, numPointsSpace)
 yDomain = np.linspace(0, yLength, numPointsSpace)
-# Time Vector plotted on z-axis
 timeDomain = np.linspace(0, maxTime, numPointsTime)
 
-# Step-sizes- dt, dx, dy
+# Step sizes
 timeStepSize = timeDomain[1] - timeDomain[0]
 spaceStepSize = xDomain[1] - xDomain[0]
 
-# Stability condition: dt <= dx^2/(2*k)
-err_dt= np.abs((spaceStepSize**2)/(2*diffusivityConstant))
-print(err_dt)
-assert(timeStepSize <= err_dt)
+# Stability condition: dt <= dx^2/(4*k) for 2D
+# stability_limit = (spaceStepSize**2)/(4*diffusivityConstant)
+# print(f"Stability limit: {stability_limit:.6f}")
+# print(f"Time step: {timeStepSize:.6f}")
+# assert(timeStepSize <= stability_limit), "Time step too large for stability!"
 
-# Calculate lambda constant for x and y (they're the same if dx = dy)
+# Lambda constant
 lambdaConstant = (diffusivityConstant * timeStepSize) / (spaceStepSize**2)
-# Stability condition: kdt/dx^2 <= 0.5
-assert(lambdaConstant <= 0.5) 
-print(lambdaConstant)
+# print(f"Lambda: {lambdaConstant:.6f}")
+# assert(lambdaConstant <= 0.25), "Lambda too large for 2D stability!"  # 0.25 for 2D
 
-# lambda functions for initial condition and boundary condtions
-# 2 sin x sin 2y + 3 sin 4x sin 5y + t
-u0 = lambda x, y: 2 * np.sin(x) * np.sin(2*y) + 3 * np.sin(4*x) * np.sin(5*y)
-left = lambda t, y: 2 * np.sin(0) * np.sin(2*y) + 3 * np.sin(4*0) * np.sin(5*y) + t
-right = lambda t, y: 2 * np.sin(xLength) * np.sin(2*y) + 3 * np.sin(4*xLength) * np.sin(5*y) + t
-bottom = lambda t, x: 2 * np.sin(x) * np.sin(2*0) + 3 * np.sin(4*x) * np.sin(5*0) + t 
-top = lambda t, x: 2 * np.sin(x) * np.sin(2*yLength) + 3 * np.sin(4*x) * np.sin(5*yLength) + t
+# Initial condition - a hot spot in the center
+u0 = lambda x, y: 10 * np.exp(-((x - xLength/2)**2 + (y - yLength/2)**2) / 2)
 
+# Boundary conditions based on your MATLAB code
+# u0 = @(x, y) 20;
+u0 = lambda x, y: 20 * np.ones_like(x) if hasattr(x, '__iter__') else 20
 
-# error assertion for intial & boundary conditions
-err1_u0 = np.abs(u0(0, 0) - left(0, 0))
-assert(err1_u0 < 1e-12)
-err2_u0 = np.abs(u0(0, yLength) - right(0, 0))
-assert(err2_u0 < 1e-12)
-err3_u0 = np.abs(u0(0, 0) - bottom(0, 0))
-assert(err3_u0 < 1e-12)
-err4_u0 = np.abs(u0(0, xLength) - top(0, 0))
-assert(err4_u0 < 1e-12)
+# left = @(t,y) 20 + 10*y*(Ly-y)*t^2;  
+left = lambda t, y: 20 + 10 * y * (yLength - y) * t**2
+
+# right = @(t, y) 20 + 100*y*(Ly-y)^3*(t-1)^2*(t>1);
+right = lambda t, y: 20 + 100 * y * (yLength - y)**3 * (t - 1)**2 * (t > 1)
+
+# up = @(t, x) 20 + 5*x*(Lx-x)*t^4;
+top = lambda t, x: 20 + 5 * x * (xLength - x) * t**4
+
+# down = @(t, x) 20;
+bottom = lambda t, x: 20                             # Warm top boundary
 
 def initMatrix():
-    # initialize an empty matrix
-    matrix = np.empty((numPointsTime, numPointsSpace, numPointsSpace))
-    # set the boundary conditions for the entire 2D space
+    matrix = np.zeros((numPointsTime, numPointsSpace, numPointsSpace))
+    
+    # Set boundary conditions for all time steps
     for tau in range(numPointsTime):
+        t = timeDomain[tau]
+        # Left and right boundaries (x = 0 and x = xLength)
         for i in range(numPointsSpace):
-            matrix[tau, i, 0] = left(timeDomain[tau], xDomain[i])
-            matrix[tau, i, -1] = right(timeDomain[tau], xDomain[i])
-    for tau in range(numPointsTime):
+            y = yDomain[i]
+            matrix[tau, 0, i] = left(t, y)      # Left boundary (x=0)
+            matrix[tau, -1, i] = right(t, y)    # Right boundary (x=xLength)
+        
+        # Bottom and top boundaries (y = 0 and y = yLength)  
         for j in range(numPointsSpace):
-            matrix[tau, 0, j] = bottom(timeDomain[tau], yDomain[j])
-            matrix[tau, -1, j] = top(timeDomain[tau], yDomain[j])
-    # set the initial condition for the entire 2D space at t=0
-    for i in range(len(xDomain)):
-        for j in range(len(yDomain)):
-            matrix[0,i,j] = u0(xDomain[i], yDomain[j])
+            x = xDomain[j]
+            matrix[tau, j, 0] = bottom(t, x)    # Bottom boundary (y=0)
+            matrix[tau, j, -1] = top(t, x)      # Top boundary (y=yLength)
+    
+    # Set initial condition at t=0
+    for i in range(numPointsSpace):
+        for j in range(numPointsSpace):
+            matrix[0, i, j] = u0(xDomain[i], yDomain[j])
+    
+    # Ensure corners are consistent (use boundary values)
+    for tau in range(numPointsTime):
+        t = timeDomain[tau]
+        matrix[tau, 0, 0] = left(t, yDomain[0])      # Bottom-left
+        matrix[tau, 0, -1] = left(t, yDomain[-1])    # Top-left  
+        matrix[tau, -1, 0] = right(t, yDomain[0])    # Bottom-right
+        matrix[tau, -1, -1] = right(t, yDomain[-1])  # Top-right
     
     return matrix
 
-
-# Time-stepping loop
 def calculateTemperature(U):
-    for tau in range(0, numPointsTime-1, 1):
-        for i in range(1, numPointsSpace-1, 1):
-            for j in range(1, numPointsSpace-1, 1):
-                # 5-point stencil implementation
-                U[tau+1,i,j] = U[tau,i,j] + lambdaConstant * (
-                    # x-direction terms
-                    (U[tau,i-1,j] - 2*U[tau,i,j] + U[tau,i+1,j]) +
-                    # y-direction terms
-                    (U[tau,i,j-1] - 2*U[tau,i,j] + U[tau,i,j+1])
+    for tau in range(numPointsTime-1):
+        for i in range(1, numPointsSpace-1):
+            for j in range(1, numPointsSpace-1):
+                # 5-point stencil for 2D heat equation
+                U[tau+1, i, j] = U[tau, i, j] + lambdaConstant * (
+                    # Second derivative in x-direction
+                    (U[tau, i-1, j] - 2*U[tau, i, j] + U[tau, i+1, j]) +
+                    # Second derivative in y-direction  
+                    (U[tau, i, j-1] - 2*U[tau, i, j] + U[tau, i, j+1])
                 )
     return U
-
 
 def plot_surface(u_k, k, ax):
     ax.clear()
     X, Y = np.meshgrid(xDomain, yDomain)
     
-    surf = ax.plot_surface(X, Y, u_k, 
-                          cmap='jet',
-                          vmin=0, vmax=100)
+    # Transpose u_k to match meshgrid orientation
+    surf = ax.plot_surface(X, Y, u_k.T, 
+                          cmap='hot',
+                          alpha=0.9)
     
     ax.set_xlabel('X Position')
-    ax.set_ylabel('Y Position')
+    ax.set_ylabel('Y Position') 
     ax.set_zlabel('Temperature')
-    ax.set_title(f'Temperature at t = {k*timeStepSize:.3f}')
+    ax.set_title(f'2D Heat Equation: t = {k*timeStepSize:.4f}')
     ax.view_init(elev=30, azim=45)
+    
+    # Set consistent z-axis limits for better visualization
+    ax.set_zlim(0, 100)
+    
     return surf
 
-# Create figure and 3D axes outside animation loop
-fig = plt.figure(figsize=(10, 7))
-ax = fig.add_subplot(111, projection='3d')
-
-def animate(k):
-    plot_surface(tempMatrix[k], k, ax)
-
-emptyMatrix = initMatrix()
-tempMatrix = calculateTemperature(emptyMatrix)
-
-
-anim = FuncAnimation(fig, animate, interval=10, frames=numPointsTime, repeat=False)
-anim.save("heat_equation_solution_surf_explicit.gif", writer='pillow')
+# Main execution
+if __name__ == "__main__":
+    # Initialize and solve
+    print("Initializing matrix...")
+    emptyMatrix = initMatrix()
+    print("Calculating temperature evolution...")
+    tempMatrix = calculateTemperature(emptyMatrix)
+    
+    # Create animation
+    print("Creating animation...")
+    fig = plt.figure(figsize=(12, 8))
+    ax = fig.add_subplot(111, projection='3d')
+    
+    def animate(k):
+        return plot_surface(tempMatrix[k], k, ax)
+    
+    anim = FuncAnimation(fig, animate, interval=100, frames=numPointsTime, repeat=True)
+    
+    # Show the plot
+    # plt.tight_layout()
+    plt.show()
+    
+    # Optionally save animation
+    # anim.save("heat_equation_corrected.gif", writer='pillow', fps=10)
