@@ -1,2 +1,3 @@
 from .heat_solvers import Heat1DExplicitSolver, Heat1DCNSolver
+from .heat2d_solvers import Heat2DExplicitSolver
 from .black_scholes_solvers import BlackScholesExplicitSolver, BlackScholesCNSolver

@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 from scipy.sparse import csc_matrix
 
 import pdesolvers.enums.enums as enum
@@ -31,21 +32,75 @@ class Heat1DHelper:
 class Heat2DHelper:
     @staticmethod
     def initMatrix(t_nodes, x_nodes, y_nodes, left, right, bottom, top, u0, xDomain, yDomain, tDomain):
-        # initialize an empty matrix
-        matrix = np.empty((t_nodes, x_nodes, y_nodes))
-        # set the boundary conditions for the entire 2D space
+        """
+        Initialize a 3D matrix with boundary and initial conditions for the 2D heat equation.
+        
+        Parameters:
+        -----------
+        t_nodes : int
+            Number of time points
+        x_nodes : int  
+            Number of x spatial points
+        y_nodes : int
+            Number of y spatial points
+        left : callable
+            Left boundary condition function: left(t, y) -> temperature
+        right : callable  
+            Right boundary condition function: right(t, y) -> temperature
+        bottom : callable
+            Bottom boundary condition function: bottom(t, x) -> temperature
+        top : callable
+            Top boundary condition function: top(t, x) -> temperature
+        u0 : callable
+            Initial condition function: u0(x, y) -> temperature
+        xDomain : np.array
+            X coordinate array
+        yDomain : np.array  
+            Y coordinate array
+        tDomain : np.array
+            Time array
+            
+        Returns:
+        --------
+        np.array
+            3D array of shape (t_nodes, x_nodes, y_nodes) with initialized conditions
+        """
+        
+        matrix = np.zeros((t_nodes, x_nodes, y_nodes))
+        
         for tau in range(t_nodes):
-            for i in range(x_nodes):
-                matrix[tau, i, 0] = left(tau, xDomain[i])
-                matrix[tau, i, -1] = right(tau, xDomain[i])
-        for tau in range(t_nodes):
+            t = tDomain[tau]
+            
+            # Left and right boundaries (x = 0 and x = xLength)
+            for i in range(y_nodes):
+                y = yDomain[i]
+                matrix[tau, 0, i] = left(t, y)      # Left boundary (x=0)
+                matrix[tau, -1, i] = right(t, y)    # Right boundary (x=xLength)
+            
+            # Bottom and top boundaries (y = 0 and y = yLength)  
             for j in range(x_nodes):
-                matrix[tau, 0, j] = bottom(tau, yDomain[j])
-                matrix[tau, -1, j] = top(tau, yDomain[j])
-        # set the initial condition for the entire 2D space at t=0
-        for i in range(len(xDomain)):
-            for j in range(len(yDomain)):
-                matrix[0,i,j] = u0(xDomain[i], yDomain[j])
+                x = xDomain[j]
+                matrix[tau, j, 0] = bottom(t, x)    # Bottom boundary (y=0)
+                matrix[tau, j, -1] = top(t, x)      # Top boundary (y=yLength)
+        
+        # Set initial condition at t=0
+        for i in range(x_nodes):
+            for j in range(y_nodes):
+                try:
+                    initial_val = u0(xDomain[i], yDomain[j])
+                    if hasattr(initial_val, '__iter__') and not isinstance(initial_val, str):
+                        matrix[0, i, j] = float(initial_val.flat[0]) if hasattr(initial_val, 'flat') else float(initial_val[0])
+                    else:
+                        matrix[0, i, j] = float(initial_val)
+                except (TypeError, IndexError, AttributeError):
+                    matrix[0, i, j] = float(u0(xDomain[i], yDomain[j]))
+        
+        for tau in range(t_nodes):
+            t = tDomain[tau]
+            matrix[tau, 0, 0] = left(t, yDomain[0])      # Bottom-left
+            matrix[tau, 0, -1] = left(t, yDomain[-1])    # Top-left  
+            matrix[tau, -1, 0] = right(t, yDomain[0])    # Bottom-right
+            matrix[tau, -1, -1] = right(t, yDomain[-1])  # Top-right
         
         return matrix
 

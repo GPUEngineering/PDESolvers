@@ -1,1 +1,1 @@
-from .solution import Solution1D, SolutionBlackScholes
+from .solution import Solution1D, SolutionBlackScholes, Heat2DSolution

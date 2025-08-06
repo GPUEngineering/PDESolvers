@@ -1,3 +1,4 @@
+from matplotlib.animation import FuncAnimation
 import numpy as np
 import pdesolvers.utils.utility as utility
 import pdesolvers.enums.enums as enum
@@ -166,3 +167,63 @@ class SolutionBlackScholes(Solution):
         ax.set_ylabel('Asset Price')
         ax.set_zlabel(f'{self.option_type.value} Option Value')
         ax.set_title(f'{self.option_type.value} Option Value Surface Plot')
+
+class Heat2DSolution:
+    def __init__(self, result, x_grid, y_grid, t_grid, dx, dy, dt, duration):
+        self.result = result
+        self.x_grid = x_grid
+        self.y_grid = y_grid
+        self.t_grid = t_grid
+        self.dx = dx
+        self.dy = dy
+        self.dt = dt
+        self.duration = duration
+
+    @staticmethod
+    def __plot_surface(u_k, k, ax, xDomain, yDomain, dt):
+        ax.clear()
+        X, Y = np.meshgrid(xDomain, yDomain)
+        # Transpose u_k to match meshgrid orientation
+        surf = ax.plot_surface(X, Y, u_k.T, 
+                            cmap='hot',
+                            alpha=0.9)
+        ax.set_xlabel('X Position')
+        ax.set_ylabel('Y Position') 
+        ax.set_zlabel('Temperature')
+        ax.set_title(f'2D Heat Equation: t = {k*dt:.4f}')
+        ax.view_init(elev=30, azim=45)
+        ax.set_zlim(0, 100)
+
+        return surf
+    
+    def animate(self, export=False):
+        print("Creating animation...")
+        self
+        fig = plt.figure(figsize=(12, 8))
+        ax = fig.add_subplot(111, projection='3d')
+        
+        def animateFrame(k):
+            return Heat2DSolution.__plot_surface(self.result[k], k, ax, self.x_grid, self.y_grid, self.dt)
+        
+        anim = FuncAnimation(fig, animateFrame, interval=100, frames=self.result.t_nodes, repeat=True)
+        
+        if export:
+            anim.save("heat_equation_corrected.gif", writer='pillow', fps=10)
+
+        plt.show()
+    
+    def get_result(self):
+        """
+        Gets the grid of computed temperature values
+
+        :return: grid result
+        """
+        return self.result
+        
+    def get_execution_time(self):
+        """
+        Gets the time taken for the solver to solve the equation
+        :return: duration
+        """
+        return self.duration
+    
