@@ -31,6 +31,7 @@ class Heat2DExplicitSolver (Solver):
         dx = x[1]-x[0]
         dy = y[1]-y[0]
         dt = t[1]-t[0]
+        assert dt < (dx*dy)/(4*self.equation.k), "Time-step size too large!! violates CFL condtion for Forward Euler method."
         lambdaConstant = (self.equation.k * dt)
 
         print("Initializing matrix...")
@@ -51,9 +52,9 @@ class Heat2DExplicitSolver (Solver):
                     # 5-point stencil for 2D heat equation
                     U[tau+1, i, j] = U[tau, i, j] + lambdaConstant * (
                         # Second derivative in x-direction
-                        (1/dx**2)/(U[tau, i-1, j] - 2*U[tau, i, j] + U[tau, i+1, j]) +
+                        (1/dx**2)*(U[tau, i-1, j] - 2*U[tau, i, j] + U[tau, i+1, j]) +
                         # Second derivative in y-direction  
-                        (1/dy**2)/(U[tau, i, j-1] - 2*U[tau, i, j] + U[tau, i, j+1])
+                        (1/dy**2)*(U[tau, i, j-1] - 2*U[tau, i, j] + U[tau, i, j+1])
                     )
         
         end = time.perf_counter()

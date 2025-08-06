@@ -67,7 +67,7 @@ class Heat2DHelper:
         """
         
         matrix = np.zeros((t_nodes, x_nodes, y_nodes))
-        
+        # sp.sparse()
         for tau in range(t_nodes):
             t = tDomain[tau]
             
@@ -104,6 +104,8 @@ class Heat2DHelper:
         
         return matrix
 
+    def buildTriDiag():
+        return None
 class BlackScholesHelper:
 
     @staticmethod

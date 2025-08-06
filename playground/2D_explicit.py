@@ -124,6 +124,10 @@ if __name__ == "__main__":
     print("Calculating temperature evolution...")
     tempMatrix = calculateTemperature(emptyMatrix)
     
+    # Save temperature matrix to CSV file
+    print("Saving temperature matrix to file...")
+    np.savetxt("temperature_data.csv", tempMatrix.reshape(numPointsTime, -1), delimiter=",")
+    
     # Create animation
     print("Creating animation...")
     fig = plt.figure(figsize=(12, 8))
@@ -132,11 +136,11 @@ if __name__ == "__main__":
     def animate(k):
         return plot_surface(tempMatrix[k], k, ax)
     
-    anim = FuncAnimation(fig, animate, interval=100, frames=numPointsTime, repeat=True)
+    # anim = FuncAnimation(fig, animate, interval=100, frames=numPointsTime, repeat=True)
     
     # Show the plot
     # plt.tight_layout()
-    plt.show()
+    # plt.show()
     
     # Optionally save animation
     # anim.save("heat_equation_corrected.gif", writer='pillow', fps=10)

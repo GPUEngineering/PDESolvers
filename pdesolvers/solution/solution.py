@@ -205,10 +205,10 @@ class Heat2DSolution:
         def animateFrame(k):
             return Heat2DSolution.__plot_surface(self.result[k], k, ax, self.x_grid, self.y_grid, self.dt)
         
-        anim = FuncAnimation(fig, animateFrame, interval=100, frames=self.result.t_nodes, repeat=True)
+        anim = FuncAnimation(fig, animateFrame, interval=100, frames=len(self.t_grid), repeat=True)
         
         if export:
-            anim.save("heat_equation_corrected.gif", writer='pillow', fps=10)
+            anim.save("heat_equation_2d_plot.gif", writer='pillow', fps=5)
 
         plt.show()
     
