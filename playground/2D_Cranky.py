@@ -10,7 +10,7 @@ yLength = 10
 maxTime = 0.5  
 diffusivityConstant = 4  
 numPointsSpace = 50  
-numPointsTime = 200
+numPointsTime = 2000
 
 # Domain setup
 xDomain = np.linspace(0, xLength, numPointsSpace)
@@ -36,12 +36,22 @@ print(f"cx = cy = {cx:.6f}")
 print(f"alpha = {alpha:.6f}")
 print(f"beta = {beta:.6f}")
 
-# Boundary conditions (from your MATLAB code)
-u0 = lambda x, y: 20
+# Initial condition - a hot spot in the center
+u0 = lambda x, y: 10 * np.exp(-((x - xLength/2)**2 + (y - yLength/2)**2) / 2)
+
+# Boundary conditions based on your MATLAB code
+
+# left = @(t,y) 20 + 10*y*(Ly-y)*t^2;  
 left = lambda t, y: 20 + 10 * y * (yLength - y) * t**2
+
+# right = @(t, y) 20 + 100*y*(Ly-y)^3*(t-1)^2*(t>1);
 right = lambda t, y: 20 + 100 * y * (yLength - y)**3 * (t - 1)**2 * (t > 1)
+
+# up = @(t, x) 20 + 5*x*(Lx-x)*t^4;
 top = lambda t, x: 20 + 5 * x * (xLength - x) * t**4
-bottom = lambda t, x: 20
+
+# down = @(t, x) 20;
+bottom = lambda t, x: 20                             # Warm top boundary
 
 def initMatrix(t_nodes, x_nodes, y_nodes, left, right, bottom, top, u0, xDomain, yDomain, tDomain):
     """Initialize matrix with boundary and initial conditions"""
@@ -68,67 +78,33 @@ def initMatrix(t_nodes, x_nodes, y_nodes, left, right, bottom, top, u0, xDomain,
     
     return matrix
 
-def build_2d_crank_nicolson_matrix(nx, ny, cx, cy, alpha):
+def build_2d_crank_nicolson_matrix(nx, ny, cx, cy):
     """
-    Build the sparse matrix G for the 2D Crank-Nicolson system Gu_{tau+1} = g
-    
-    Following your notes:
-    -cx*U[i-1,j] + alpha*U[i,j] - cx*U[i+1,j] - cy*U[i,j-1] - cy*U[i,j+1] = RHS
+    Build G matrix for (I - c*Δ)U_{τ+1} = (I + c*Δ)U_τ
+    Following notes: -cx*U[i-1,j] + α*U[i,j] - cx*U[i+1,j] - cy*U[i,j-1] - cy*U[i,j+1] = RHS
     """
-    # Interior points only (excluding boundaries)
-    n_interior_x = nx - 2
+    n_interior_x = nx - 2  # Exclude boundaries
     n_interior_y = ny - 2
     n_total = n_interior_x * n_interior_y
     
-    print(f"Building matrix for {n_interior_x} x {n_interior_y} = {n_total} interior points")
+    alpha = 1 + 2*cx + 2*cy
     
-    # Create 1D tridiagonal matrices
-    # For x-direction: -cx, alpha, -cx (but we need to account for y-coupling)
-    main_diag_1d = np.ones(n_interior_x)
-    off_diag_1d = -cx * np.ones(n_interior_x - 1)
+    # Build diagonals for the sparse matrix
+    main_diagonal = np.full(n_total, alpha)
     
-    # Create tridiagonal matrix for x-direction
-    Tx = diags([off_diag_1d, main_diag_1d, off_diag_1d], 
-               offsets=[-1, 0, 1], 
-               shape=(n_interior_x, n_interior_x), 
-               format='csr')
-    
-    # Identity matrix for y-direction
-    Iy = eye(n_interior_y, format='csr')
-    
-    # Identity matrix for x-direction  
-    Ix = eye(n_interior_x, format='csr')
-    
-    # Create tridiagonal matrix for y-direction
-    main_diag_1d_y = np.ones(n_interior_y)
-    off_diag_1d_y = -cy * np.ones(n_interior_y - 1)
-    
-    Ty = diags([off_diag_1d_y, main_diag_1d_y, off_diag_1d_y], 
-               offsets=[-1, 0, 1], 
-               shape=(n_interior_y, n_interior_y), 
-               format='csr')
-    
-    # Build 2D matrix using Kronecker products
-    # G = kron(Iy, Tx) + kron(Ty, Ix) but with correct coefficients
-    
-    # Start with main diagonal (alpha terms)
-    G = alpha * eye(n_total, format='csr')
-    
-    # Add x-direction coupling: -cx for i±1,j terms
-    # This corresponds to ±1 in the flattened indexing
-    x_coupling_diag = -cx * np.ones(n_total - 1)
-    # But we need to zero out connections across y-boundaries
+    # x-direction coupling (±1 in flattened index)
+    x_off_diagonal = np.full(n_total - 1, -cx)
+    # Zero out connections across y-boundaries
     for i in range(n_interior_x - 1, n_total - 1, n_interior_x):
-        if i < len(x_coupling_diag):
-            x_coupling_diag[i] = 0
+        if i < len(x_off_diagonal):
+            x_off_diagonal[i] = 0
     
-    # Add y-direction coupling: -cy for i,j±1 terms  
-    # This corresponds to ±n_interior_x in the flattened indexing
-    y_coupling_diag = -cy * np.ones(n_total - n_interior_x)
+    # y-direction coupling (±n_interior_x in flattened index) 
+    y_off_diagonal = np.full(n_total - n_interior_x, -cy)
     
-    # Combine all diagonals
-    diagonals = [y_coupling_diag, x_coupling_diag, np.full(n_total, alpha), 
-                 x_coupling_diag[:n_total-1], y_coupling_diag]
+    # Assemble matrix
+    diagonals = [y_off_diagonal, x_off_diagonal, main_diagonal, 
+                 x_off_diagonal[:n_total-1], y_off_diagonal]
     offsets = [-n_interior_x, -1, 0, 1, n_interior_x]
     
     G = diags(diagonals, offsets=offsets, shape=(n_total, n_total), format='csr')
@@ -137,75 +113,48 @@ def build_2d_crank_nicolson_matrix(nx, ny, cx, cy, alpha):
 
 def calculateTemperatureCN(U):
     """
-    2D Crank-Nicolson time stepping
+    Crank-Nicolson time stepping: (I - c*Δ)U_{τ+1} = (I + c*Δ)U_τ + boundary_terms
     """
     nx, ny = numPointsSpace, numPointsSpace
+    beta = 1 - 2*cx - 2*cy
     
-    # Build the system matrix G (this is the LHS matrix)
-    G, n_interior_x, n_interior_y = build_2d_crank_nicolson_matrix(nx, ny, cx, cy, alpha)
-    
-    print("Starting Crank-Nicolson time stepping...")
+    G, n_interior_x, n_interior_y = build_2d_crank_nicolson_matrix(nx, ny, cx, cy)
     
     for tau in range(numPointsTime - 1):
-        if tau % 50 == 0:
-            print(f"Time step {tau}/{numPointsTime-1}, t = {tau*timeStepSize:.4f}")
+        # Extract interior points from previous time step
+        # u_prev_interior = U[tau, 1:-1, 1:-1]
         
-        # Build RHS vector g
-        # g comes from: beta*U[tau] + cx*(neighbors in x) + cy*(neighbors in y) + boundary terms
-        
+        # Build RHS: (I + c*Δ)U_τ + boundary contributions
         rhs = np.zeros(n_interior_x * n_interior_y)
         
-        # Flatten interior points from previous time step
-        u_prev_interior = U[tau, 1:-1, 1:-1].flatten()
-        
-        # Main contribution: beta * U_prev for interior points
-        rhs = beta * u_prev_interior
-        
-        # Add contributions from previous time step neighbors (explicit part)
         idx = 0
-        for j in range(1, ny-1):  # j is y-index
+        for j in range(1, ny-1):  # j is y-index  
             for i in range(1, nx-1):  # i is x-index
-                # Add explicit x-direction terms: cx*(U[i-1,j] + U[i+1,j])
-                rhs[idx] += cx * (U[tau, i-1, j] + U[tau, i+1, j])
+                # Main term: β*U_τ (comes from (1 - 2cx - 2cy)*U_τ)
+                rhs[idx] = beta * U[tau, i, j]
                 
-                # Add explicit y-direction terms: cy*(U[i,j-1] + U[i,j+1])  
+                # Explicit part: +c*Δ*U_τ
+                # x-direction: +cx*(U[i-1,j] + U[i+1,j]) from previous time
+                rhs[idx] += cx * (U[tau, i-1, j] + U[tau, i+1, j])
+                # y-direction: +cy*(U[i,j-1] + U[i,j+1]) from previous time  
                 rhs[idx] += cy * (U[tau, i, j-1] + U[tau, i, j+1])
                 
-                # Add boundary contributions for current time step (implicit part)
-                # Left boundary contribution
-                if i == 1:
+                # Implicit boundary contributions (known at τ+1)
+                # These come from -c*Δ*U_{τ+1} where boundary values are known
+                if i == 1:  # Left boundary
                     rhs[idx] += cx * U[tau+1, 0, j]
-                # Right boundary contribution  
-                if i == nx-2:
+                if i == nx-2:  # Right boundary
                     rhs[idx] += cx * U[tau+1, -1, j]
-                # Bottom boundary contribution
-                if j == 1:
+                if j == 1:  # Bottom boundary
                     rhs[idx] += cy * U[tau+1, i, 0]
-                # Top boundary contribution
-                if j == ny-2:
+                if j == ny-2:  # Top boundary  
                     rhs[idx] += cy * U[tau+1, i, -1]
                 
                 idx += 1
         
-        # Solve the linear system G * u_next = rhs
-        try:
-            u_next_interior = spsolve(G, rhs)
-            
-            # Reshape and assign back to interior points
-            U[tau+1, 1:-1, 1:-1] = u_next_interior.reshape((n_interior_x, n_interior_y))
-            
-            # Check for stability
-            max_temp = np.max(U[tau+1])
-            min_temp = np.min(U[tau+1])
-            
-            if max_temp > 1000 or min_temp < -100:
-                print(f"WARNING: Extreme temperatures detected at t={tau*timeStepSize:.4f}")
-                print(f"Temperature range: [{min_temp:.2f}, {max_temp:.2f}]")
-                break
-                
-        except Exception as e:
-            print(f"ERROR: Failed to solve linear system at time step {tau}: {e}")
-            break
+        # Solve G*u_{τ+1} = rhs
+        u_next_interior = spsolve(G, rhs)
+        U[tau+1, 1:-1, 1:-1] = u_next_interior.reshape((n_interior_x, n_interior_y))
     
     return U
 
@@ -224,9 +173,8 @@ def plot_surface(u_k, k, ax):
     ax.view_init(elev=30, azim=45)
     
     # Dynamic z-limits
-    z_min = max(15, np.min(u_k))
-    z_max = min(100, np.max(u_k))
-    ax.set_zlim(z_min, z_max)
+    z_max = max(100, np.max(u_k))
+    ax.set_zlim(0, z_max)
     
     return surf
 
@@ -260,8 +208,7 @@ if __name__ == "__main__":
     
     anim = FuncAnimation(fig, animate, interval=100, frames=min(numPointsTime, 200), repeat=True)
     
-    plt.tight_layout()
-    plt.show()
-    
     # Optionally save animation
     anim.save("heat_equation_2d_crank_nicolson.gif", writer='pillow', fps=10)
+    
+    plt.show()

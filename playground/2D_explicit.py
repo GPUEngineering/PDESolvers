@@ -35,8 +35,6 @@ lambdaConstant = (diffusivityConstant * timeStepSize) / (spaceStepSize**2)
 u0 = lambda x, y: 10 * np.exp(-((x - xLength/2)**2 + (y - yLength/2)**2) / 2)
 
 # Boundary conditions based on your MATLAB code
-# u0 = @(x, y) 20;
-u0 = lambda x, y: 20 * np.ones_like(x) if hasattr(x, '__iter__') else 20
 
 # left = @(t,y) 20 + 10*y*(Ly-y)*t^2;  
 left = lambda t, y: 20 + 10 * y * (yLength - y) * t**2
@@ -124,9 +122,9 @@ if __name__ == "__main__":
     print("Calculating temperature evolution...")
     tempMatrix = calculateTemperature(emptyMatrix)
     
-    # Save temperature matrix to CSV file
-    print("Saving temperature matrix to file...")
-    np.savetxt("temperature_data.csv", tempMatrix.reshape(numPointsTime, -1), delimiter=",")
+    # # Save temperature matrix to CSV file
+    # print("Saving temperature matrix to file...")
+    # np.savetxt("temperature_data.csv", tempMatrix.reshape(numPointsTime, -1), delimiter=",")
     
     # Create animation
     print("Creating animation...")
@@ -136,11 +134,10 @@ if __name__ == "__main__":
     def animate(k):
         return plot_surface(tempMatrix[k], k, ax)
     
-    # anim = FuncAnimation(fig, animate, interval=100, frames=numPointsTime, repeat=True)
+    anim = FuncAnimation(fig, animate, interval=100, frames=numPointsTime, repeat=True)
     
     # Show the plot
-    # plt.tight_layout()
     # plt.show()
     
     # Optionally save animation
-    # anim.save("heat_equation_corrected.gif", writer='pillow', fps=10)
+    anim.save("heat_equation_2d_explicit.gif", writer='pillow', fps=10)
