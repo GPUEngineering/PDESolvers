@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import pdesolvers as pde
-import cupy as cp
 
 def main():
 
@@ -22,8 +21,8 @@ def main():
     yLength = 10  # Ly
     maxTime = 3  # tmax
     diffusivityConstant = 15  # kappa
-    numPointsSpace = 1000  # x_points = y_points
-    numPointsTime = 10  # t_points
+    numPointsSpace = 800  # x_points = y_points
+    numPointsTime = 5  # t_points
     ts = 50
 
     equation = (pde.HeatEquation2D(maxTime, numPointsTime, diffusivityConstant, xLength, numPointsSpace))
@@ -41,8 +40,6 @@ def main():
     # solution2 = solver2.solve()
     # solution2.animate(#export=True, 
     #                   filename="Crank-Nicolson-400_spatial_pts-CPU")
-    cp.get_default_memory_pool().free_all_blocks()
-    cp.cuda.Device().synchronize()
     solver3 = pde.Heat2DCNSolverGPU(equation)
     solution3 = solver3.solve()
     solution3.animate(#export=True,
