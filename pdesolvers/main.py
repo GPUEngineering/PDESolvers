@@ -31,13 +31,16 @@ def main():
     equation.set_top_boundary_temp(lambda t, x: 20 + 5 * x * (xLength - x) * t**4)
     equation.set_bottom_boundary_temp(lambda t, x: 20)
 
-    solver1 = pde.Heat2DExplicitSolver(equation)
-    solver1 = pde.Heat2DCNSolver(equation)
-    solution1 = solver1.solve()
-    solution1.animate(filename="Explicit")
-    solver2 = pde.Heat2DCNSolver(equation)
-    solution2 = solver2.solve()
-    solution2.animate(filename="Crank-Nicolson")
+    # solver1 = pde.Heat2DExplicitSolver(equation)
+    # solution1 = solver1.solve()
+    # solution1.animate(filename="Explicit")
+    # solver2 = pde.Heat2DCNSolver(equation)
+    # solution2 = solver2.solve()
+    # solution2.animate(filename="Crank-Nicolson")
+
+    solver3 = pde.Heat2DCNSolverGPU(equation)
+    solution3 = solver3.solve()
+    solution3.animate(filename="Crank-Nicolson")
     
     # testing for monte carlo pricing
     # ticker = 'AAPL'

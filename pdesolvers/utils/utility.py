@@ -3,6 +3,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.sparse import diags
 from scipy.sparse import csc_matrix
+import cupy as cp
+from cupyx.scipy.sparse import diags as cupy_diags
 
 import pdesolvers.enums.enums as enum
 
@@ -67,7 +69,7 @@ class Heat2DHelper:
         """
         
         matrix = np.zeros((t_nodes, x_nodes, y_nodes))
-        # sp.sparse()
+        
         for tau in range(t_nodes):
             t = tDomain[tau]
             
@@ -131,6 +133,68 @@ class Heat2DHelper:
         offsets = [-n_interior_x, -1, 0, 1, n_interior_x]
         
         G = diags(diagonals, offsets=offsets, shape=(n_total, n_total), format='csr')
+        
+        return G, n_interior_x, n_interior_y
+    
+    @staticmethod
+    def init_matrix_gpu(t_nodes, x_nodes, y_nodes, left, right, bottom, top, u0, x_domain, y_domain, t_domain):
+        """
+        GPU version of initMatrix - initializes on GPU then returns CuPy array
+        
+        Parameters same as initMatrix but returns CuPy array for GPU computation
+        """
+        # First initialize on CPU using existing method
+        matrix_cpu = Heat2DHelper.initMatrix(t_nodes, x_nodes, y_nodes, left, right, bottom, top, u0, x_domain, y_domain, t_domain)
+        
+        # Transfer to GPU
+        matrix_gpu = cp.asarray(matrix_cpu)
+        
+        return matrix_gpu
+
+    @staticmethod
+    def build_cupy_sparse_matrix(nx, ny, cx, cy, alpha):
+        """
+        Build sparse matrix for Crank-Nicolson system using CuPy
+        
+        Parameters:
+        -----------
+        nx, ny : int
+            Number of spatial nodes in x and y directions
+        cx, cy : float  
+            Stability parameters in x and y directions
+        alpha : float
+            Main diagonal coefficient
+            
+        Returns:
+        --------
+        G : cupyx.scipy.sparse matrix
+            System matrix for implicit solve
+        n_interior_x, n_interior_y : int
+            Number of interior nodes in each direction
+        """
+        n_interior_x = nx - 2
+        n_interior_y = ny - 2
+        n_total = n_interior_x * n_interior_y
+        
+        # Main diagonal: α coefficients
+        main_diagonal = cp.full(n_total, alpha)
+        
+        # x-direction coupling: -cx coefficients (±1 in flattened index)
+        x_off_diagonal = cp.full(n_total - 1, -cx)
+        # Zero out connections across y-boundaries
+        for i in range(n_interior_x - 1, n_total - 1, n_interior_x):
+            if i < len(x_off_diagonal):
+                x_off_diagonal[i] = 0
+        
+        # y-direction coupling: -cy coefficients (±n_interior_x in flattened index)
+        y_off_diagonal = cp.full(n_total - n_interior_x, -cy)
+        
+        # Assemble sparse matrix using CuPy
+        diagonals = [y_off_diagonal, x_off_diagonal, main_diagonal, 
+                    x_off_diagonal[:n_total-1], y_off_diagonal]
+        offsets = [-n_interior_x, -1, 0, 1, n_interior_x]
+        
+        G = cupy_diags(diagonals, offsets=offsets, shape=(n_total, n_total), format='csr')
         
         return G, n_interior_x, n_interior_y
     
