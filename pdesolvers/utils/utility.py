@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
+from scipy.sparse import diags
 from scipy.sparse import csc_matrix
 
 import pdesolvers.enums.enums as enum
@@ -104,8 +104,36 @@ class Heat2DHelper:
         
         return matrix
 
-    def buildTriDiag():
-        return None
+    def innitTriDiagMatrix(nx, ny, cx, cy, alpha):
+        """
+        Build sparse matrix G for: -cx*U[i-1,j] + α*U[i,j] - cx*U[i+1,j] - cy*U[i,j-1] - cy*U[i,j+1] = RHS
+        """
+        n_interior_x = nx - 2
+        n_interior_y = ny - 2
+        n_total = n_interior_x * n_interior_y
+        
+        # Main diagonal: α coefficients
+        main_diagonal = np.full(n_total, alpha)
+        
+        # x-direction coupling: -cx coefficients (±1 in flattened index)
+        x_off_diagonal = np.full(n_total - 1, -cx)
+        # Zero out connections across y-boundaries
+        for i in range(n_interior_x - 1, n_total - 1, n_interior_x):
+            if i < len(x_off_diagonal):
+                x_off_diagonal[i] = 0
+        
+        # y-direction coupling: -cy coefficients (±n_interior_x in flattened index)
+        y_off_diagonal = np.full(n_total - n_interior_x, -cy)
+        
+        # Assemble sparse matrix
+        diagonals = [y_off_diagonal, x_off_diagonal, main_diagonal, 
+                    x_off_diagonal[:n_total-1], y_off_diagonal]
+        offsets = [-n_interior_x, -1, 0, 1, n_interior_x]
+        
+        G = diags(diagonals, offsets=offsets, shape=(n_total, n_total), format='csr')
+        
+        return G, n_interior_x, n_interior_y
+    
 class BlackScholesHelper:
 
     @staticmethod

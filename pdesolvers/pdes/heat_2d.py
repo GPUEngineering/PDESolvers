@@ -2,6 +2,17 @@ import numpy as np
 
 class HeatEquation2D:
     def __init__(self, time, t_nodes, k, xlength, x_nodes, ylength=None, y_nodes=None):
+        
+        assert time > 0, "Time must be positive"
+        assert t_nodes > 1, "Number of time nodes must be greater than 1" 
+        assert k > 0, "Diffusivity constant k must be positive"
+        assert xlength > 0, "X-length must be positive"
+        assert x_nodes > 2, "Number of x nodes must be greater than 2"
+        if ylength is not None:
+            assert ylength > 0, "Y-length must be positive"
+        if y_nodes is not None:
+            assert y_nodes > 2, "Number of y nodes must be greater than 2"
+        
         self.__time = time
         self.__t_nodes = t_nodes
         self.__k = k

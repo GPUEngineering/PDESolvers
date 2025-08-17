@@ -196,7 +196,7 @@ class Heat2DSolution:
 
         return surf
     
-    def animate(self, export=False):
+    def animate(self, export=False, filename="heat_equation_2d_plot.gif"):
         print("Creating animation...")
         self
         fig = plt.figure(figsize=(12, 8))
@@ -208,7 +208,7 @@ class Heat2DSolution:
         anim = FuncAnimation(fig, animateFrame, interval=100, frames=len(self.t_grid), repeat=True)
         
         if export:
-            anim.save("heat_equation_2d_plot.gif", writer='pillow', fps=5)
+            anim.save(filename+'.gif', writer='pillow', fps=5)
 
         plt.show()
     

@@ -15,7 +15,8 @@ def main():
     # solver1 = pde.Heat1DCNSolver(equation1)
     # solver2 = pde.Heat1DExplicitSolver(equation1)
 
-    #testing Heat 2d
+    # testing 2d heat equation
+    
     xLength = 10  # Lx
     yLength = 10  # Ly  
     maxTime = 0.5  # tmax
@@ -30,12 +31,13 @@ def main():
     equation.set_top_boundary_temp(lambda t, x: 20 + 5 * x * (xLength - x) * t**4)
     equation.set_bottom_boundary_temp(lambda t, x: 20)
 
-    solver = pde.Heat2DExplicitSolver(equation)
-    solution = solver.solve()
-    # Save temperature matrix to CSV file
-    # print("Saving temperature matrix to file...")
-    # np.savetxt("temperature_data_pkg.csv", solution.result.reshape(numPointsTime, -1), delimiter=",")
-    solution.animate(export=True)
+    solver1 = pde.Heat2DExplicitSolver(equation)
+    solver1 = pde.Heat2DCNSolver(equation)
+    solution1 = solver1.solve()
+    solution1.animate(filename="Explicit")
+    solver2 = pde.Heat2DCNSolver(equation)
+    solution2 = solver2.solve()
+    solution2.animate(filename="Crank-Nicolson")
     
     # testing for monte carlo pricing
     # ticker = 'AAPL'
