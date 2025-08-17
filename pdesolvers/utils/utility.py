@@ -151,52 +151,97 @@ class Heat2DHelper:
         
         return matrix_gpu
 
-    @staticmethod
-    def build_cupy_sparse_matrix(nx, ny, cx, cy, alpha):
-        """
-        Build sparse matrix for Crank-Nicolson system using CuPy
+    def precompute_boundaries_cpu(self, x, y, t):
+        """Pre-compute all boundary values on CPU to minimize GPU transfers"""
+        nx, ny, nt = len(x), len(y), len(t)
         
-        Parameters:
-        -----------
-        nx, ny : int
-            Number of spatial nodes in x and y directions
-        cx, cy : float  
-            Stability parameters in x and y directions
-        alpha : float
-            Main diagonal coefficient
-            
-        Returns:
-        --------
-        G : cupyx.scipy.sparse matrix
-            System matrix for implicit solve
-        n_interior_x, n_interior_y : int
-            Number of interior nodes in each direction
-        """
+        # Pre-allocate boundary arrays
+        left_boundary = np.zeros((nt, ny))
+        right_boundary = np.zeros((nt, ny))
+        bottom_boundary = np.zeros((nt, nx))
+        top_boundary = np.zeros((nt, nx))
+        
+        # Compute all boundary values at once
+        for tau in range(nt):
+            t_val = t[tau]
+            # Left and right boundaries
+            for j in range(ny):
+                left_boundary[tau, j] = self.equation.left_boundary(t_val, y[j])
+                right_boundary[tau, j] = self.equation.right_boundary(t_val, y[j])
+            # Bottom and top boundaries
+            for i in range(nx):
+                bottom_boundary[tau, i] = self.equation.bottom_boundary(t_val, x[i])
+                top_boundary[tau, i] = self.equation.top_boundary(t_val, x[i])
+        
+        # Pre-compute initial condition
+        initial_temp = np.zeros((nx, ny))
+        for i in range(nx):
+            for j in range(ny):
+                initial_temp[i, j] = self.equation.initial_temp(x[i], y[j])
+        
+        return {
+            'left': left_boundary,
+            'right': right_boundary, 
+            'bottom': bottom_boundary,
+            'top': top_boundary,
+            'initial': initial_temp
+        }
+
+    def transfer_to_gpu(self, boundary_data, x, y, t):
+        """Transfer all data to GPU in one efficient operation"""
+        gpu_data = {}
+        
+        # Transfer boundary data
+        for key, data in boundary_data.items():
+            gpu_data[key] = cp.asarray(data)
+        
+        # Transfer grids
+        gpu_data['x'] = cp.asarray(x)
+        gpu_data['y'] = cp.asarray(y) 
+        gpu_data['t'] = cp.asarray(t)
+        
+        return gpu_data
+
+    def build_gpu_sparse_matrix(self, cx, cy, alpha):
+        """Build sparse system matrix entirely on GPU"""
+        nx, ny = self.equation.x_nodes, self.equation.y_nodes
         n_interior_x = nx - 2
         n_interior_y = ny - 2
         n_total = n_interior_x * n_interior_y
         
-        # Main diagonal: α coefficients
+        # Build matrix entirely on GPU
         main_diagonal = cp.full(n_total, alpha)
-        
-        # x-direction coupling: -cx coefficients (±1 in flattened index)
         x_off_diagonal = cp.full(n_total - 1, -cx)
-        # Zero out connections across y-boundaries
+        y_off_diagonal = cp.full(n_total - n_interior_x, -cy)
+        
+        # Zero boundary crossings
         for i in range(n_interior_x - 1, n_total - 1, n_interior_x):
             if i < len(x_off_diagonal):
                 x_off_diagonal[i] = 0
         
-        # y-direction coupling: -cy coefficients (±n_interior_x in flattened index)
-        y_off_diagonal = cp.full(n_total - n_interior_x, -cy)
-        
-        # Assemble sparse matrix using CuPy
         diagonals = [y_off_diagonal, x_off_diagonal, main_diagonal, 
                     x_off_diagonal[:n_total-1], y_off_diagonal]
         offsets = [-n_interior_x, -1, 0, 1, n_interior_x]
         
         G = cupy_diags(diagonals, offsets=offsets, shape=(n_total, n_total), format='csr')
+        return G
+
+    def initialize_solution_gpu(self, gpu_data):
+        """Initialize solution matrix on GPU"""
+        nx, ny, nt = self.equation.x_nodes, self.equation.y_nodes, self.equation.t_nodes
+        U = cp.zeros((nt, nx, ny))
         
-        return G, n_interior_x, n_interior_y
+        # Set initial condition
+        U[0, :, :] = gpu_data['initial']
+        
+        # Set boundary conditions for all time steps
+        for tau in range(nt):
+            U[tau, 0, :] = gpu_data['left'][tau, :]      # Left boundary
+            U[tau, -1, :] = gpu_data['right'][tau, :]    # Right boundary  
+            U[tau, :, 0] = gpu_data['bottom'][tau, :]    # Bottom boundary
+            U[tau, :, -1] = gpu_data['top'][tau, :]      # Top boundary
+        
+        return U
     
 class BlackScholesHelper:
 

@@ -19,10 +19,10 @@ def main():
     
     xLength = 10  # Lx
     yLength = 10  # Ly  
-    maxTime = 0.5  # tmax
+    maxTime = 10  # tmax
     diffusivityConstant = 4  # kappa
     numPointsSpace = 50  # x_points = y_points
-    numPointsTime = 2000  # t_points
+    numPointsTime = 20000  # t_points
 
     equation = (pde.HeatEquation2D(maxTime, numPointsTime, diffusivityConstant, xLength, numPointsSpace))
     equation.set_initial_temp(lambda x, y: 10 * np.exp(-((x - xLength/2)**2 + (y - yLength/2)**2) / 2))
@@ -34,13 +34,13 @@ def main():
     # solver1 = pde.Heat2DExplicitSolver(equation)
     # solution1 = solver1.solve()
     # solution1.animate(filename="Explicit")
-    # solver2 = pde.Heat2DCNSolver(equation)
-    # solution2 = solver2.solve()
-    # solution2.animate(filename="Crank-Nicolson")
+    solver2 = pde.Heat2DCNSolver(equation)
+    solution2 = solver2.solve()
+    solution2.animate(filename="Crank-Nicolson")
 
-    solver3 = pde.Heat2DCNSolverGPU(equation)
-    solution3 = solver3.solve()
-    solution3.animate(filename="Crank-Nicolson")
+    # solver3 = pde.Heat2DCNSolverGPU(equation)
+    # solution3 = solver3.solve()
+    # solution3.animate(filename="Crank-Nicolson")
     
     # testing for monte carlo pricing
     # ticker = 'AAPL'
