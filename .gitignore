@@ -24,3 +24,5 @@ pdesolvers.egg-info/
 # Other files
 *.log
 /.coverage
+*.gif
+*.csv

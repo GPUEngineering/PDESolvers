@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from scipy.sparse import diags
 from scipy.sparse import csc_matrix
 
 import pdesolvers.enums.enums as enum
@@ -28,6 +29,111 @@ class Heat1DHelper:
 
         return matrix
 
+class Heat2DHelper:
+    @staticmethod
+    def initMatrix(t_nodes, x_nodes, y_nodes, left, right, bottom, top, u0, xDomain, yDomain, tDomain):
+        """
+        Initialize a 3D matrix with boundary and initial conditions for the 2D heat equation.
+        
+        Parameters:
+        -----------
+        t_nodes : int
+            Number of time points
+        x_nodes : int  
+            Number of x spatial points
+        y_nodes : int
+            Number of y spatial points
+        left : callable
+            Left boundary condition function: left(t, y) -> temperature
+        right : callable  
+            Right boundary condition function: right(t, y) -> temperature
+        bottom : callable
+            Bottom boundary condition function: bottom(t, x) -> temperature
+        top : callable
+            Top boundary condition function: top(t, x) -> temperature
+        u0 : callable
+            Initial condition function: u0(x, y) -> temperature
+        xDomain : np.array
+            X coordinate array
+        yDomain : np.array  
+            Y coordinate array
+        tDomain : np.array
+            Time array
+            
+        Returns:
+        --------
+        np.array
+            3D array of shape (t_nodes, x_nodes, y_nodes) with initialized conditions
+        """
+        
+        matrix = np.zeros((t_nodes, x_nodes, y_nodes))
+        # sp.sparse()
+        for tau in range(t_nodes):
+            t = tDomain[tau]
+            
+            # Left and right boundaries (x = 0 and x = xLength)
+            for i in range(y_nodes):
+                y = yDomain[i]
+                matrix[tau, 0, i] = left(t, y)      # Left boundary (x=0)
+                matrix[tau, -1, i] = right(t, y)    # Right boundary (x=xLength)
+            
+            # Bottom and top boundaries (y = 0 and y = yLength)  
+            for j in range(x_nodes):
+                x = xDomain[j]
+                matrix[tau, j, 0] = bottom(t, x)    # Bottom boundary (y=0)
+                matrix[tau, j, -1] = top(t, x)      # Top boundary (y=yLength)
+        
+        # Set initial condition at t=0
+        for i in range(x_nodes):
+            for j in range(y_nodes):
+                try:
+                    initial_val = u0(xDomain[i], yDomain[j])
+                    if hasattr(initial_val, '__iter__') and not isinstance(initial_val, str):
+                        matrix[0, i, j] = float(initial_val.flat[0]) if hasattr(initial_val, 'flat') else float(initial_val[0])
+                    else:
+                        matrix[0, i, j] = float(initial_val)
+                except (TypeError, IndexError, AttributeError):
+                    matrix[0, i, j] = float(u0(xDomain[i], yDomain[j]))
+        
+        for tau in range(t_nodes):
+            t = tDomain[tau]
+            matrix[tau, 0, 0] = left(t, yDomain[0])      # Bottom-left
+            matrix[tau, 0, -1] = left(t, yDomain[-1])    # Top-left  
+            matrix[tau, -1, 0] = right(t, yDomain[0])    # Bottom-right
+            matrix[tau, -1, -1] = right(t, yDomain[-1])  # Top-right
+        
+        return matrix
+
+    def innitTriDiagMatrix(nx, ny, cx, cy, alpha):
+        """
+        Build sparse matrix G for: -cx*U[i-1,j] + α*U[i,j] - cx*U[i+1,j] - cy*U[i,j-1] - cy*U[i,j+1] = RHS
+        """
+        n_interior_x = nx - 2
+        n_interior_y = ny - 2
+        n_total = n_interior_x * n_interior_y
+        
+        # Main diagonal: α coefficients
+        main_diagonal = np.full(n_total, alpha)
+        
+        # x-direction coupling: -cx coefficients (±1 in flattened index)
+        x_off_diagonal = np.full(n_total - 1, -cx)
+        # Zero out connections across y-boundaries
+        for i in range(n_interior_x - 1, n_total - 1, n_interior_x):
+            if i < len(x_off_diagonal):
+                x_off_diagonal[i] = 0
+        
+        # y-direction coupling: -cy coefficients (±n_interior_x in flattened index)
+        y_off_diagonal = np.full(n_total - n_interior_x, -cy)
+        
+        # Assemble sparse matrix
+        diagonals = [y_off_diagonal, x_off_diagonal, main_diagonal, 
+                    x_off_diagonal[:n_total-1], y_off_diagonal]
+        offsets = [-n_interior_x, -1, 0, 1, n_interior_x]
+        
+        G = diags(diagonals, offsets=offsets, shape=(n_total, n_total), format='csr')
+        
+        return G, n_interior_x, n_interior_y
+    
 class BlackScholesHelper:
 
     @staticmethod
