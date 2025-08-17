@@ -191,8 +191,7 @@ class Heat2DSolution:
         ax.set_ylabel('Y Position') 
         ax.set_zlabel('Temperature')
         ax.set_title(f'2D Heat Equation: t = {k*dt:.4f}')
-        ax.view_init(elev=30, azim=45)
-        ax.set_zlim(0, 100)
+        ax.set_zlim(0, 50)
 
         return surf
     

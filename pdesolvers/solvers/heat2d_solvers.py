@@ -4,6 +4,7 @@ import logging
 import numpy as np
 import cupy as cp
 from cupyx.scipy.sparse.linalg import spsolve as cupy_spsolve
+from cupyx.scipy.sparse import diags as cupy_diags
 import pdesolvers.solution as sol
 import pdesolvers.pdes.heat_2d as heat
 import pdesolvers.utils.utility as utility
@@ -77,9 +78,10 @@ class Heat2DCNSolver (Solver):
         self.equation = equation
 
     def solve(self):
-        logging.info(f"Starting {self.__class__.__name__} with {self.equation.x_nodes+1} spatial nodes and {self.equation.t_nodes+1} time nodes.")
+        logging.info(f"Starting {self.__class__.__name__} with {self.equation.x_nodes} spatial nodes and {self.equation.t_nodes} time nodes.")
         start = time.perf_counter()
 
+        # Validation
         if (self.equation.left_boundary is None or 
             self.equation.right_boundary is None or 
             self.equation.top_boundary is None or 
@@ -95,49 +97,63 @@ class Heat2DCNSolver (Solver):
         dx = x[1]-x[0]
         dy = y[1]-y[0]
         dt = t[1]-t[0]
+        
+        # Crank-Nicolson parameters (c = κ*dt/2)
         c = self.equation.k * dt / 2
         cx = c / (dx**2)
         cy = c / (dy**2)
-        alpha = 1 + 2*cx + 2*cy
-        beta = 1 - 2*cx - 2*cy
+        alpha = 1 + 2*cx + 2*cy  # Diagonal coefficient for LHS
+        beta = 1 - 2*cx - 2*cy   # Diagonal coefficient for RHS
 
         print("Initializing matrix...")
         U = utility.Heat2DHelper.initMatrix(self.equation.t_nodes,
-                                                 self.equation.x_nodes,
-                                                 self.equation.y_nodes,
-                                                 self.equation.left_boundary,
-                                                 self.equation.right_boundary,
-                                                 self.equation.bottom_boundary,
-                                                 self.equation.top_boundary,
-                                                 self.equation.initial_temp,
-                                                 x, y, t)
+                                        self.equation.x_nodes,
+                                        self.equation.y_nodes,
+                                        self.equation.left_boundary,
+                                        self.equation.right_boundary,
+                                        self.equation.bottom_boundary,
+                                        self.equation.top_boundary,
+                                        self.equation.initial_temp,
+                                        x, y, t)
         
-        # create sparse matrix
-        G, n_interior_x, n_interior_y = utility.Heat2DHelper.innitTriDiagMatrix(self.equation.x_nodes, self.equation.y_nodes, cx, cy, alpha)
+        # Build the LHS matrix (I - c*Δ̃)
+        n_interior_x = self.equation.x_nodes - 2
+        n_interior_y = self.equation.y_nodes - 2
+        n_total = n_interior_x * n_interior_y
         
-        # time-stepping loop
-        print(f"Calculating temperature evolution with {self.equation.t_nodes-1} iterations...", flush=True)
+        # Create the sparse matrix for the linear system
+        G = utility.Heat2DHelper.build_cn_matrix(n_interior_x, n_interior_y, cx, cy, alpha)
+        
+        # Time-stepping loop
+        print(f"Calculating temperature evolution with {self.equation.t_nodes-1} iterations...")
         for tau in range(self.equation.t_nodes - 1):
-            rhs = np.zeros(n_interior_x * n_interior_y)
+            # Build RHS vector: (I + c*Δ̃)U_τ + boundary terms
+            rhs = np.zeros(n_total)
             idx = 0
+            
             for j in range(1, self.equation.y_nodes-1):
                 for i in range(1, self.equation.x_nodes-1):
-                    # RHS = β*U_τ + cx*(neighbors_x) + cy*(neighbors_y) + boundary_terms
-                    rhs[idx] = beta * U[tau, i, j]
-                    rhs[idx] += cx * (U[tau, i-1, j] + U[tau, i+1, j])
-                    rhs[idx] += cy * (U[tau, i, j-1] + U[tau, i, j+1])
-                    # Boundary contributions
-                    if i == 1:
+                    # RHS from (I + c*Δ̃)U_τ
+                    rhs[idx] = (beta * U[tau, i, j] + 
+                            cx * (U[tau, i-1, j] + U[tau, i+1, j]) +
+                            cy * (U[tau, i, j-1] + U[tau, i, j+1]))
+                    
+                    # Add boundary contributions from τ+1
+                    if i == 1:  # Left boundary
                         rhs[idx] += cx * U[tau+1, 0, j]
-                    if i == self.equation.x_nodes-2:
+                    if i == self.equation.x_nodes-2:  # Right boundary  
                         rhs[idx] += cx * U[tau+1, -1, j]
-                    if j == 1:
+                    if j == 1:  # Bottom boundary
                         rhs[idx] += cy * U[tau+1, i, 0]
-                    if j == self.equation.y_nodes-2:
+                    if j == self.equation.y_nodes-2:  # Top boundary
                         rhs[idx] += cy * U[tau+1, i, -1]
+                        
                     idx += 1
-            # Solve G*u_{τ+1} = rhs
+            
+            # Solve the linear system: G * u_{τ+1} = rhs
             u_next_interior = spsolve(G, rhs)
+            
+            # Reshape and assign to interior points
             U[tau+1, 1:-1, 1:-1] = u_next_interior.reshape((n_interior_x, n_interior_y))
             
         end = time.perf_counter()
@@ -157,9 +173,7 @@ class Heat2DCNSolverGPU(Solver):
     def solve(self):
         """
         Solves the 2D heat equation using GPU-accelerated Crank-Nicolson method
-        
-        Returns:
-            Heat2DSolution: Solution object with results and metadata
+        Mirrors the CPU implementation exactly but on GPU
         """
         logging.info(f"Starting {self.__class__.__name__} with {self.equation.x_nodes} x {self.equation.y_nodes} spatial nodes and {self.equation.t_nodes} time nodes.")
         start = time.perf_counter()
@@ -187,67 +201,106 @@ class Heat2DCNSolverGPU(Solver):
         beta = 1 - 2*cx - 2*cy
 
         logging.info(f"GPU acceleration enabled. Stability parameters: cx={cx:.6f}, cy={cy:.6f}")
+        print(f"CuPy using device: {cp.cuda.Device()}")
+        print(f"CuPy version: {cp.__version__}")
+        print(f"CUDA version: {cp.cuda.runtime.runtimeGetVersion()}")
 
-        # Pre-compute ALL boundary values on CPU, then transfer to GPU once
-        print("Pre-computing boundary conditions...")
-        boundary_data = utility.Heat2DHelper.precompute_boundaries_cpu(self, x, y, t)
+        print("Initializing matrix on GPU...")
+        # Initialize matrix on GPU using same utility function but transfer to GPU
+        U_cpu = utility.Heat2DHelper.initMatrix(self.equation.t_nodes,
+                                               self.equation.x_nodes,
+                                               self.equation.y_nodes,
+                                               self.equation.left_boundary,
+                                               self.equation.right_boundary,
+                                               self.equation.bottom_boundary,
+                                               self.equation.top_boundary,
+                                               self.equation.initial_temp,
+                                               x, y, t)
         
-        # Transfer everything to GPU in one go
-        print("Transferring data to GPU...")
-        gpu_data = utility.Heat2DHelper.transfer_to_gpu(self, boundary_data, x, y, t)
+        print("=== GPU Solver Debug Start ===")
+        print("About to transfer U_cpu to GPU...")
+        U_gpu = cp.asarray(U_cpu)
+        print("Matrix transferred to GPU")
+        print("About to build sparse matrix on GPU...")
         
-        # Build sparse system matrix on GPU
-        print("Building sparse matrix on GPU...")
-        G = utility.Heat2DHelper.build_gpu_sparse_matrix(self, cx, cy, alpha)
+        # Build sparse matrix on GPU (same structure as CPU)
+        n_interior_x = self.equation.x_nodes - 2
+        n_interior_y = self.equation.y_nodes - 2
+        n_total = n_interior_x * n_interior_y
         
-        # Initialize solution on GPU
-        U_gpu = utility.Heat2DHelper.initialize_solution_gpu(self, gpu_data)
+        # Build matrix directly on GPU
+        main_diag = cp.full(n_total, alpha)
+        x_off_diag = cp.full(n_total - 1, -cx)
+        y_off_diag = cp.full(n_total - n_interior_x, -cy)
+        
+        # Zero boundary crossings
+        for i in range(n_interior_x - 1, n_total - 1, n_interior_x):
+            x_off_diag[i] = 0
+        
+        
+        G = cupy_diags([y_off_diag, x_off_diag, main_diag, x_off_diag, y_off_diag], 
+                       offsets=[-n_interior_x, -1, 0, 1, n_interior_x], 
+                       shape=(n_total, n_total), format='csr')
+        
+        # Time-stepping loop
+        print(f"Calculating temperature evolution on GPU with {self.equation.t_nodes-1} iterations...")
+        for tau in range(self.equation.t_nodes - 1):
+            print(f'calculating temperature at time-step: {tau}', flush=True)
+            # Build RHS vector: (I + c*Δ̃)U_τ + boundary terms
+            rhs = cp.zeros(n_total)
+            
+            # RHS calculation with loops
+            # idx = 0
+            
+            # for j in range(1, self.equation.y_nodes-1):
+            #     for i in range(1, self.equation.x_nodes-1):
+            #         # RHS from (I + c*Δ̃)U_τ - SAME AS CPU
+            #         rhs[idx] = (beta * U_gpu[tau, i, j] + 
+            #                   cx * (U_gpu[tau, i-1, j] + U_gpu[tau, i+1, j]) +
+            #                   cy * (U_gpu[tau, i, j-1] + U_gpu[tau, i, j+1]))
+                    
+            #         # Add boundary contributions from τ+1 - SAME AS CPU
+            #         if i == 1:  # Left boundary
+            #             rhs[idx] += cx * U_gpu[tau+1, 0, j]
+            #         if i == self.equation.x_nodes-2:  # Right boundary  
+            #             rhs[idx] += cx * U_gpu[tau+1, -1, j]
+            #         if j == 1:  # Bottom boundary
+            #             rhs[idx] += cy * U_gpu[tau+1, i, 0]
+            #         if j == self.equation.y_nodes-2:  # Top boundary
+            #             rhs[idx] += cy * U_gpu[tau+1, i, -1]
+                        
+            #         idx += 1
 
-        # GPU time-stepping loop
-        print(f"Calculating temperature evolution on GPU with {self.equation.t_nodes-1} iterations...", flush=True)
-        nx, ny, nt = self.equation.x_nodes, self.equation.y_nodes, self.equation.t_nodes
-        n_interior_x = nx - 2
-        n_interior_y = ny - 2
-        
-        # Pre-allocate RHS vector on GPU
-        rhs = cp.zeros(n_interior_x * n_interior_y)
-        
-        for tau in range(nt - 1):
-            # Vectorized RHS computation using GPU array operations
-            interior_current = U_gpu[tau, 1:-1, 1:-1]  # Current interior points
+            # Vectorized RHS computation
+            U_interior = U_gpu[tau, 1:-1, 1:-1]
+            U_left = U_gpu[tau, :-2, 1:-1] 
+            U_right = U_gpu[tau, 2:, 1:-1]
+            U_bottom = U_gpu[tau, 1:-1, :-2]
+            U_top = U_gpu[tau, 1:-1, 2:]
+
+            rhs_matrix = (beta * U_interior + 
+                        cx * (U_left + U_right) + 
+                        cy * (U_bottom + U_top))
+
+            # Add boundary terms vectorized
+            rhs_matrix[:, 0] += cx * U_gpu[tau+1, 1:-1, 0]   # Left boundary
+            rhs_matrix[:, -1] += cx * U_gpu[tau+1, 1:-1, -1] # Right boundary  
+            rhs_matrix[0, :] += cy * U_gpu[tau+1, 0, 1:-1]   # Bottom boundary
+            rhs_matrix[-1, :] += cy * U_gpu[tau+1, -1, 1:-1] # Top boundary
+
+            rhs = rhs_matrix.flatten()
             
-            # Vectorized finite difference stencil
-            rhs_2d = (beta * interior_current + 
-                     cx * (U_gpu[tau, :-2, 1:-1] + U_gpu[tau, 2:, 1:-1]) +  # x-neighbors
-                     cy * (U_gpu[tau, 1:-1, :-2] + U_gpu[tau, 1:-1, 2:]))   # y-neighbors
-            
-            # Add boundary contributions (vectorized)
-            # Left boundary contribution
-            rhs_2d[0, :] += cx * U_gpu[tau+1, 0, 1:-1]
-            # Right boundary contribution  
-            rhs_2d[-1, :] += cx * U_gpu[tau+1, -1, 1:-1]
-            # Bottom boundary contribution
-            rhs_2d[:, 0] += cy * U_gpu[tau+1, 1:-1, 0]
-            # Top boundary contribution
-            rhs_2d[:, -1] += cy * U_gpu[tau+1, 1:-1, -1]
-            
-            # Flatten for sparse solve
-            rhs = rhs_2d.flatten()
-            
-            # Solve linear system on GPU
+            # Solve the linear system on GPU
             u_next_interior = cupy_spsolve(G, rhs)
             
-            # Reshape and assign
+            # Reshape and assign to interior points
             U_gpu[tau+1, 1:-1, 1:-1] = u_next_interior.reshape((n_interior_x, n_interior_y))
 
         # Transfer final result back to CPU
         U_cpu = cp.asnumpy(U_gpu)
-        x_cpu = cp.asnumpy(x) if isinstance(x, cp.ndarray) else x
-        y_cpu = cp.asnumpy(y) if isinstance(y, cp.ndarray) else y
-        t_cpu = cp.asnumpy(t) if isinstance(t, cp.ndarray) else t
 
         end = time.perf_counter()
         duration = end - start
         logging.info(f"GPU solver completed in {duration} seconds.")
         
-        return sol.Heat2DSolution(U_cpu, x_cpu, y_cpu, t_cpu, dx, dy, dt, duration)
+        return sol.Heat2DSolution(U_cpu, x, y, t, dx, dy, dt, duration)

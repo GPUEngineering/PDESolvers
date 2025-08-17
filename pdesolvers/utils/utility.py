@@ -74,16 +74,16 @@ class Heat2DHelper:
             t = tDomain[tau]
             
             # Left and right boundaries (x = 0 and x = xLength)
-            for i in range(y_nodes):
-                y = yDomain[i]
-                matrix[tau, 0, i] = left(t, y)      # Left boundary (x=0)
-                matrix[tau, -1, i] = right(t, y)    # Right boundary (x=xLength)
+            for j in range(y_nodes):
+                y = yDomain[j]
+                matrix[tau, 0, j] = left(t, y)      # Left boundary (x=0)
+                matrix[tau, -1, j] = right(t, y)    # Right boundary (x=xLength)
             
             # Bottom and top boundaries (y = 0 and y = yLength)  
-            for j in range(x_nodes):
-                x = xDomain[j]
-                matrix[tau, j, 0] = bottom(t, x)    # Bottom boundary (y=0)
-                matrix[tau, j, -1] = top(t, x)      # Top boundary (y=yLength)
+            for i in range(x_nodes):
+                x = xDomain[i]
+                matrix[tau, i, 0] = bottom(t, x)    # Bottom boundary (y=0)
+                matrix[tau, i, -1] = top(t, x)      # Top boundary (y=yLength)
         
         # Set initial condition at t=0
         for i in range(x_nodes):
@@ -106,35 +106,39 @@ class Heat2DHelper:
         
         return matrix
 
-    def innitTriDiagMatrix(nx, ny, cx, cy, alpha):
+    def build_cn_matrix(n_interior_x, n_interior_y, cx, cy, alpha):
         """
-        Build sparse matrix G for: -cx*U[i-1,j] + α*U[i,j] - cx*U[i+1,j] - cy*U[i,j-1] - cy*U[i,j+1] = RHS
+        Build the CN matrix (I - c*Δ̃) for the 2D heat equation
+        Following the structure from the mathematical notes
         """
-        n_interior_x = nx - 2
-        n_interior_y = ny - 2
         n_total = n_interior_x * n_interior_y
         
-        # Main diagonal: α coefficients
+        # Main diagonal: α = 1 + 2cx + 2cy
         main_diagonal = np.full(n_total, alpha)
         
-        # x-direction coupling: -cx coefficients (±1 in flattened index)
-        x_off_diagonal = np.full(n_total - 1, -cx)
+        # X-direction off-diagonals: -cx
+        x_lower = np.full(n_total-1, -cx)
+        x_upper = np.full(n_total-1, -cx)
+        
         # Zero out connections across y-boundaries
-        for i in range(n_interior_x - 1, n_total - 1, n_interior_x):
-            if i < len(x_off_diagonal):
-                x_off_diagonal[i] = 0
+        for i in range(n_interior_x-1, n_total-1, n_interior_x):
+            if i < len(x_lower):
+                x_lower[i] = 0
+            if i < len(x_upper):
+                x_upper[i] = 0
         
-        # y-direction coupling: -cy coefficients (±n_interior_x in flattened index)
-        y_off_diagonal = np.full(n_total - n_interior_x, -cy)
+        # Y-direction off-diagonals: -cy
+        y_lower = np.full(n_total-n_interior_x, -cy)
+        y_upper = np.full(n_total-n_interior_x, -cy)
         
-        # Assemble sparse matrix
-        diagonals = [y_off_diagonal, x_off_diagonal, main_diagonal, 
-                    x_off_diagonal[:n_total-1], y_off_diagonal]
+        # Assemble the sparse matrix
+        diagonals = [y_lower, x_lower, main_diagonal, x_upper, y_upper]
         offsets = [-n_interior_x, -1, 0, 1, n_interior_x]
         
+        from scipy.sparse import diags
         G = diags(diagonals, offsets=offsets, shape=(n_total, n_total), format='csr')
         
-        return G, n_interior_x, n_interior_y
+        return G
     
     @staticmethod
     def init_matrix_gpu(t_nodes, x_nodes, y_nodes, left, right, bottom, top, u0, x_domain, y_domain, t_domain):

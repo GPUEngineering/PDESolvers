@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import pdesolvers as pde
+import cupy as cp
 
 def main():
 
@@ -18,29 +19,34 @@ def main():
     # testing 2d heat equation
     
     xLength = 10  # Lx
-    yLength = 10  # Ly  
-    maxTime = 10  # tmax
-    diffusivityConstant = 4  # kappa
-    numPointsSpace = 50  # x_points = y_points
-    numPointsTime = 20000  # t_points
+    yLength = 10  # Ly
+    maxTime = 3  # tmax
+    diffusivityConstant = 15  # kappa
+    numPointsSpace = 1000  # x_points = y_points
+    numPointsTime = 10  # t_points
+    ts = 50
 
     equation = (pde.HeatEquation2D(maxTime, numPointsTime, diffusivityConstant, xLength, numPointsSpace))
     equation.set_initial_temp(lambda x, y: 10 * np.exp(-((x - xLength/2)**2 + (y - yLength/2)**2) / 2))
-    equation.set_right_boundary_temp(lambda t, y: 20 + 100 * y * (yLength - y)**3 * (t - 1)**2 * (t > 1))
-    equation.set_left_boundary_temp(lambda t, y: 20 + 10 * y * (yLength - y) * t**2)
-    equation.set_top_boundary_temp(lambda t, x: 20 + 5 * x * (xLength - x) * t**4)
+    equation.set_right_boundary_temp(lambda t, y: min(50, 20 + 5 * y * (yLength - y)**3 * (t/ts)**2))
+    equation.set_left_boundary_temp(lambda t, y: min(50, 20 + 10 * y * (yLength - y) * (t/ts)**2))
+    equation.set_top_boundary_temp(lambda t, x: min(50,20 + 5 * x * (xLength - x) * (t/ts)**2))
     equation.set_bottom_boundary_temp(lambda t, x: 20)
 
     # solver1 = pde.Heat2DExplicitSolver(equation)
     # solution1 = solver1.solve()
     # solution1.animate(filename="Explicit")
-    solver2 = pde.Heat2DCNSolver(equation)
-    solution2 = solver2.solve()
-    solution2.animate(filename="Crank-Nicolson")
 
-    # solver3 = pde.Heat2DCNSolverGPU(equation)
-    # solution3 = solver3.solve()
-    # solution3.animate(filename="Crank-Nicolson")
+    # solver2 = pde.Heat2DCNSolver(equation)
+    # solution2 = solver2.solve()
+    # solution2.animate(#export=True, 
+    #                   filename="Crank-Nicolson-400_spatial_pts-CPU")
+    cp.get_default_memory_pool().free_all_blocks()
+    cp.cuda.Device().synchronize()
+    solver3 = pde.Heat2DCNSolverGPU(equation)
+    solution3 = solver3.solve()
+    solution3.animate(#export=True,
+                      filename="Crank-Nicolson-200_spatial_pts-gpu")
     
     # testing for monte carlo pricing
     # ticker = 'AAPL'
