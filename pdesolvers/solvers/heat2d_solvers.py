@@ -105,7 +105,7 @@ class Heat2DCNSolver (Solver):
         alpha = 1 + 2*cx + 2*cy  # Diagonal coefficient for LHS
         beta = 1 - 2*cx - 2*cy   # Diagonal coefficient for RHS
 
-        print("Initializing matrix...")
+        logging.info("Initializing matrix...")
         U = utility.Heat2DHelper.initMatrix(self.equation.t_nodes,
                                         self.equation.x_nodes,
                                         self.equation.y_nodes,
@@ -125,8 +125,9 @@ class Heat2DCNSolver (Solver):
         G = utility.Heat2DHelper.build_cn_matrix(n_interior_x, n_interior_y, cx, cy, alpha)
         
         # Time-stepping loop
-        print(f"Calculating temperature evolution with {self.equation.t_nodes-1} iterations...")
+        logging.info(f"Calculating temperature evolution with {self.equation.t_nodes-1} iterations...")
         for tau in range(self.equation.t_nodes - 1):
+            logging.info(f'calculating temperature at time-step: {tau}')
             # Build RHS vector: (I + c*Δ̃)U_τ + boundary terms
             rhs = np.zeros(n_total)
             idx = 0
@@ -200,12 +201,12 @@ class Heat2DCNSolverGPU(Solver):
         alpha = 1 + 2*cx + 2*cy
         beta = 1 - 2*cx - 2*cy
 
-        logging.info(f"GPU acceleration enabled. Stability parameters: cx={cx:.6f}, cy={cy:.6f}")
+        logging.info(f"GPU acceleration enabled. cx={cx:.6f}, cy={cy:.6f}")
         print(f"CuPy using device: {cp.cuda.Device()}")
         print(f"CuPy version: {cp.__version__}")
         print(f"CUDA version: {cp.cuda.runtime.runtimeGetVersion()}")
 
-        print("Initializing matrix on GPU...")
+        logging.info("Initializing matrix on GPU...")
         # Initialize matrix on GPU using same utility function but transfer to GPU
         U_cpu = utility.Heat2DHelper.initMatrix(self.equation.t_nodes,
                                                self.equation.x_nodes,
@@ -218,10 +219,10 @@ class Heat2DCNSolverGPU(Solver):
                                                x, y, t)
         
         print("=== GPU Solver Debug Start ===")
-        print("About to transfer U_cpu to GPU...")
+        logging.info("About to transfer U_cpu to GPU...")
         U_gpu = cp.asarray(U_cpu)
-        print("Matrix transferred to GPU")
-        print("About to build sparse matrix on GPU...")
+        logging.info("Matrix transferred to GPU")
+        logging.info("About to build sparse matrix on GPU...")
         
         # Build sparse matrix on GPU (same structure as CPU)
         n_interior_x = self.equation.x_nodes - 2
@@ -243,9 +244,9 @@ class Heat2DCNSolverGPU(Solver):
                        shape=(n_total, n_total), format='csr')
         
         # Time-stepping loop
-        print(f"Calculating temperature evolution on GPU with {self.equation.t_nodes-1} iterations...")
+        logging.info(f"Calculating temperature evolution on GPU with {self.equation.t_nodes-1} iterations...")
         for tau in range(self.equation.t_nodes - 1):
-            print(f'calculating temperature at time-step: {tau}', flush=True)
+            logging.info(f'calculating temperature at time-step: {tau}')
             # Build RHS vector: (I + c*Δ̃)U_τ + boundary terms
             rhs = cp.zeros(n_total)
             
