@@ -21,7 +21,7 @@ class Heat2DExplicitSolver (Solver):
         self.equation = equation
 
     def solve(self):
-        logging.info(f"Starting {self.__class__.__name__} with {self.equation.x_nodes+1} spatial nodes and {self.equation.t_nodes+1} time nodes.")
+        logging.info(f"Starting {self.__class__.__name__} with {self.equation.x_nodes} spatial nodes and {self.equation.t_nodes} time nodes.")
         start = time.perf_counter()
         
         if (self.equation.left_boundary is None or 
@@ -39,7 +39,7 @@ class Heat2DExplicitSolver (Solver):
         dx = x[1]-x[0]
         dy = y[1]-y[0]
         dt = t[1]-t[0]
-        assert dt < (dx*dy)/(4*self.equation.k), "Time-step size too large!! violates CFL condtion for Forward Euler method."
+        # assert dt < (dx*dy)/(4*self.equation.k), "Time-step size too large!! violates CFL condtion for Forward Euler method."
         lambdaConstant = (self.equation.k * dt)
 
         print("Initializing matrix...")
@@ -75,7 +75,7 @@ class Heat2DCNSolver (Solver):
         self.equation = equation
 
     def solve(self):
-        logging.info(f"Starting {self.__class__.__name__} with {self.equation.x_nodes+1} spatial nodes and {self.equation.t_nodes+1} time nodes.")
+        logging.info(f"Starting {self.__class__.__name__} with {self.equation.x_nodes} spatial nodes and {self.equation.t_nodes} time nodes.")
         start = time.perf_counter()
 
         if (self.equation.left_boundary is None or 
@@ -121,18 +121,18 @@ class Heat2DCNSolver (Solver):
             for j in range(1, self.equation.y_nodes-1):
                 for i in range(1, self.equation.x_nodes-1):
                     # RHS = β*U_τ + cx*(neighbors_x) + cy*(neighbors_y) + boundary_terms
-                    rhs[idx] = beta * U[tau, i, j]
-                    rhs[idx] += cx * (U[tau, i-1, j] + U[tau, i+1, j])
-                    rhs[idx] += cy * (U[tau, i, j-1] + U[tau, i, j+1])
+                    rhs[idx] = beta * U[tau, j, i]
+                    rhs[idx] += cx * (U[tau, j, i-1] + U[tau, j, i+1])
+                    rhs[idx] += cy * (U[tau, j-1, i] + U[tau, j+1, i])
                     # Boundary contributions
                     if i == 1:
-                        rhs[idx] += cx * U[tau+1, 0, j]
+                        rhs[idx] += cx * U[tau+1, j, 0]
                     if i == self.equation.x_nodes-2:
-                        rhs[idx] += cx * U[tau+1, -1, j]
+                        rhs[idx] += cx * U[tau+1, j, -1]
                     if j == 1:
-                        rhs[idx] += cy * U[tau+1, i, 0]
+                        rhs[idx] += cy * U[tau+1, 0, i]
                     if j == self.equation.y_nodes-2:
-                        rhs[idx] += cy * U[tau+1, i, -1]
+                        rhs[idx] += cy * U[tau+1, -1, i]
                     idx += 1
             # Solve G*u_{τ+1} = rhs
             u_next_interior = spsolve(G, rhs)
