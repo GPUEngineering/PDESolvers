@@ -24,7 +24,7 @@ class Heat2DExplicitSolver (Solver):
         self.equation = equation
 
     def solve(self):
-        logging.info(f"Starting {self.__class__.__name__} with {self.equation.x_nodes+1} spatial nodes and {self.equation.t_nodes+1} time nodes.")
+        logging.info(f"Starting {self.__class__.__name__} with {self.equation.x_nodes} spatial nodes and {self.equation.t_nodes} time nodes.")
         start = time.perf_counter()
         
         if (self.equation.left_boundary is None or 
@@ -127,7 +127,7 @@ class Heat2DCNSolver (Solver):
         # Time-stepping loop
         logging.info(f"Calculating temperature evolution with {self.equation.t_nodes-1} iterations...")
         for tau in range(self.equation.t_nodes - 1):
-            logging.info(f'calculating temperature at time-step: {tau}')
+            # logging.info(f'calculating temperature at time-step: {tau}')
             # Build RHS vector: (I + c*Δ̃)U_τ + boundary terms
             rhs = np.zeros(n_total)
             idx = 0
@@ -246,7 +246,7 @@ class Heat2DCNSolverGPU(Solver):
         # Time-stepping loop
         logging.info(f"Calculating temperature evolution on GPU with {self.equation.t_nodes-1} iterations...")
         for tau in range(self.equation.t_nodes - 1):
-            logging.info(f'calculating temperature at time-step: {tau}')
+            # logging.info(f'calculating temperature at time-step: {tau}')
             # Build RHS vector: (I + c*Δ̃)U_τ + boundary terms
             rhs = cp.zeros(n_total)
             
